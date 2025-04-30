@@ -1,11 +1,14 @@
-
 from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
 import os
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/transactions.db'
+
+# Make sure the instance folder exists
+os.makedirs(os.path.join(app.root_path, 'instance'), exist_ok=True)
+
+# SQLite database file stored in the instance folder (Render compatible)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///instance/ledger.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -14,25 +17,23 @@ class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(100), nullable=False)
     amount = db.Column(db.Float, nullable=False)
-    date = db.Column(db.DateTime, default=datetime.utcnow)
+    date = db.Column(db.String(10), nullable=False)
 
-with app.app_context():
-    db.create_all()
-
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
-    if request.method == 'POST':
-        description = request.form['description']
-        amount = float(request.form['amount'])
-        new_transaction = Transaction(description=description, amount=amount)
-        db.session.add(new_transaction)
-        db.session.commit()
-        return redirect(url_for('index'))
-    
     transactions = Transaction.query.order_by(Transaction.date.desc()).all()
-    total_spent = sum(t.amount for t in transactions)
-    remaining_balance = 600 - total_spent
-    return render_template('index.html', transactions=transactions, balance=remaining_balance)
+    balance = sum(t.amount for t in transactions)
+    return render_template('index.html', transactions=transactions, balance=balance)
+
+@app.route('/add', methods=['POST'])
+def add():
+    description = request.form['description']
+    amount = float(request.form['amount'])
+    date = request.form['date']
+    new_transaction = Transaction(description=description, amount=amount, date=date)
+    db.session.add(new_transaction)
+    db.session.commit()
+    return redirect(url_for('index'))
 
 @app.route('/delete/<int:id>')
 def delete(id):
@@ -42,5 +43,6 @@ def delete(id):
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(debug=True, host='0.0.0.0', port=port)
+    with app.app_context():
+        db.create_all()
+    app.run(host='0.0.0.0', port=5000)
