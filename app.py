@@ -24,7 +24,8 @@ class Transaction(db.Model):
 @app.route('/')
 def index():
     transactions = Transaction.query.order_by(Transaction.date.desc()).all()
-    total = sum(t.amount for t in transactions)
+    starting_balance = 600
+    total = starting_balance - sum(t.amount for t in transactions)
     return render_template('index.html', transactions=transactions, total=total)
 
 @app.route('/add', methods=['POST'])
